@@ -1,108 +1,88 @@
-import React, { useState, useMemo } from 'react';
-import {
-  ThemeProvider,
-  createTheme,
-  CssBaseline,
-  Box,
-  useMediaQuery,
-} from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { CssBaseline, Container, Box, Typography } from '@mui/material';
+import { StockChart } from './components/StockChart';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Navigation } from './components/Navigation';
-import { StockPage } from './pages/StockPage';
-import { CorrelationPage } from './pages/CorrelationPage';
+
+const theme = createTheme();
+
+// Generate sample stock data
+const generateSampleData = () => {
+  const now = new Date();
+  const data: Record<string, Array<{ timestamp: string; price: number }>> = {};
+  
+  const stocks = ['AAPL', 'GOOGL', 'MSFT'];
+  const basePrices = { AAPL: 150, GOOGL: 2800, MSFT: 300 };
+  
+  stocks.forEach(stock => {
+    data[stock] = [];
+    let currentPrice = basePrices[stock as keyof typeof basePrices];
+    
+    // Generate 20 data points over the last 2 hours
+    for (let i = 19; i >= 0; i--) {
+      const timestamp = new Date(now.getTime() - i * 6 * 60 * 1000); // Every 6 minutes
+      
+      // Add some random price movement
+      const change = (Math.random() - 0.5) * 10; // Random change between -5 and +5
+      currentPrice += change;
+      
+      data[stock].push({
+        timestamp: timestamp.toISOString(),
+        price: Math.round(currentPrice * 100) / 100 // Round to 2 decimal places
+      });
+    }
+  });
+  
+  return data;
+};
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<'stocks' | 'correlation'>('stocks');
-  const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
+  const [stockData, setStockData] = useState<Record<string, Array<{ timestamp: string; price: number }>>>({});
+  const [selectedStocks, setSelectedStocks] = useState<string[]>(['AAPL', 'GOOGL']);
 
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode: prefersDarkMode ? 'dark' : 'light',
-          primary: {
-            main: '#1976d2',
-          },
-          secondary: {
-            main: '#dc004e',
-          },
-          background: {
-            default: prefersDarkMode ? '#121212' : '#f5f5f5',
-            paper: prefersDarkMode ? '#1e1e1e' : '#ffffff',
-          },
-        },
-        typography: {
-          fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-          h4: {
-            font
-            fontWeight: 600,
-          },
-          h5: {
-            fontWeight: 600,
-          },
-          h6: {
-            fontWeight: 600,
-          },
-        },
-        components: {
-          MuiButton: {
-            styleOverrides: {
-              root: {
-                textTransform: 'none',
-                borderRadius: 8,
-              },
-            },
-          },
-          MuiPaper: {
-            styleOverrides: {
-              root: {
-                borderRadius: 12,
-              },
-            },
-          },
-          MuiCard: {
-            styleOverrides: {
-              root: {
-                borderRadius: 12,
-              },
-            },
-          },
-          MuiChip: {
-            styleOverrides: {
-              root: {
-                borderRadius: 6,
-              },
-            },
-          },
-        },
-      }),
-    [prefersDarkMode]
-  );
-
-  const handlePageChange = (page: 'stocks' | 'correlation') => {
-    setCurrentPage(page);
-  };
+  useEffect(() => {
+    // Generate initial data
+    const data = generateSampleData();
+    setStockData(data);
+    
+    // Simulate real-time updates every 10 seconds
+    const interval = setInterval(() => {
+      const newData = generateSampleData();
+      setStockData(newData);
+    }, 10000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-    <ErrorBoundary>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}>
-          <Navigation 
-            currentPage={currentPage} 
-            onPageChange={handlePageChange} 
-          />
-          
-          <main>
-            {currentPage === 'stocks' ? (
-              <StockPage />
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <ErrorBoundary>
+        <Container maxWidth="lg">
+          <Box sx={{ py: 4 }}>
+            <Typography variant="h3" component="h1" gutterBottom align="center">
+              Stock Price Monitor
+            </Typography>
+            
+            <Typography variant="h6" color="textSecondary" align="center" sx={{ mb: 4 }}>
+              Real-time stock price visualization
+            </Typography>
+            
+            {Object.keys(stockData).length > 0 ? (
+              <StockChart 
+                data={stockData}
+                selectedStocks={selectedStocks}
+                showAverage={true}
+              />
             ) : (
-              <CorrelationPage />
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="h6">Loading stock data...</Typography>
+              </Box>
             )}
-          </main>
-        </Box>
-      </ThemeProvider>
-    </ErrorBoundary>
+          </Box>
+        </Container>
+      </ErrorBoundary>
+    </ThemeProvider>
   );
 }
 

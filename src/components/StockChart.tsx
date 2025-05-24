@@ -11,8 +11,28 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { Paper, Typography, Box, useTheme, useMediaQuery } from '@mui/material';
-import { StockPrice } from '../types';
-import { calculateAverage, formatCurrency } from '../utils/calculations';
+
+// Define types locally if they don't exist
+interface StockPrice {
+  timestamp: string;
+  price: number;
+}
+
+// Define utility functions locally if they don't exist
+const calculateAverage = (numbers: number[]): number => {
+  if (numbers.length === 0) return 0;
+  const sum = numbers.reduce((acc, num) => acc + num, 0);
+  return sum / numbers.length;
+};
+
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
 
 interface StockChartProps {
   data: Record<string, StockPrice[]>;
@@ -54,7 +74,7 @@ export const StockChart: React.FC<StockChartProps> = ({
     const filteredTimestamps = sortedTimestamps.filter((_, index) => index % step === 0);
     
     return filteredTimestamps.map(timestamp => {
-      const point: any = { 
+      const point: Record<string, string | number | null> = { 
         timestamp: new Date(timestamp).toLocaleTimeString([], { 
           hour: '2-digit', 
           minute: '2-digit',
@@ -87,6 +107,34 @@ export const StockChart: React.FC<StockChartProps> = ({
     });
     return avgs;
   }, [data, selectedStocks]);
+
+  // Prepare reference lines data (not JSX)
+  const referenceLineData = useMemo(() => {
+    if (!showAverage || isMobile) return [];
+    
+    return selectedStocks
+      .slice(0, 5)
+      .filter(ticker => averages[ticker])
+      .map((ticker, index) => ({
+        ticker,
+        average: averages[ticker],
+        color: CHART_COLORS[index % CHART_COLORS.length],
+        index
+      }));
+  }, [showAverage, isMobile, selectedStocks, averages]);
+
+  // Prepare mobile averages data (not JSX)
+  const mobileAverageData = useMemo(() => {
+    if (!showAverage || !isMobile) return [];
+    
+    return selectedStocks
+      .slice(0, 3)
+      .filter(ticker => averages[ticker])
+      .map(ticker => ({
+        ticker,
+        average: averages[ticker]
+      }));
+  }, [showAverage, isMobile, selectedStocks, averages]);
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -169,7 +217,7 @@ export const StockChart: React.FC<StockChartProps> = ({
             <YAxis 
               tick={{ fontSize: isMobile ? 10 : 12 }}
               width={isMobile ? 60 : 80}
-              tickFormatter={(value) => `$${value}`}
+              tickFormatter={(value) => `${value}`}
             />
             <Tooltip content={<CustomTooltip />} />
             {!isMobile && (
@@ -193,21 +241,15 @@ export const StockChart: React.FC<StockChartProps> = ({
               />
             ))}
             
-            {showAverage && !isMobile && selectedStocks.slice(0, 5).map((ticker, index) => (
-              averages[ticker] && (
-                <ReferenceLine
-                  key={`avg-${ticker}`}
-                  y={averages[ticker]}
-                  stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                  strokeDasharray="8 8"
-                  strokeWidth={1.5}
-                  label={{
-                    value: `${ticker} Avg: ${formatCurrency(averages[ticker])}`,
-                    position: 'topRight',
-                    fontSize: 11
-                  }}
-                />
-              )
+            {referenceLineData.map(({ ticker, average, color }) => (
+              <ReferenceLine
+                key={`avg-${ticker}`}
+                y={average}
+                stroke={color}
+                strokeDasharray="8 8"
+                strokeWidth={1.5}
+                label={`${ticker} Avg: ${formatCurrency(average)}`}
+              />
             ))}
           </LineChart>
         </ResponsiveContainer>
@@ -219,15 +261,13 @@ export const StockChart: React.FC<StockChartProps> = ({
         </Typography>
       )}
 
-      {showAverage && isMobile && (
+      {showAverage && isMobile && mobileAverageData.length > 0 && (
         <Box sx={{ mt: 2 }}>
           <Typography variant="caption" fontWeight="bold">Averages:</Typography>
-          {selectedStocks.slice(0, 3).map(ticker => (
-            averages[ticker] && (
-              <Typography key={ticker} variant="caption" sx={{ display: 'block' }}>
-                {ticker}: {formatCurrency(averages[ticker])}
-              </Typography>
-            )
+          {mobileAverageData.map(({ ticker, average }) => (
+            <Typography key={ticker} variant="caption" sx={{ display: 'block' }}>
+              {ticker}: {formatCurrency(average)}
+            </Typography>
           ))}
         </Box>
       )}
